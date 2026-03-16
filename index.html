@@ -1,0 +1,1670 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>アニメ絵コンテ生成ツール</title>
+  <style>
+    :root {
+      --bg:        #0d1117;
+      --bg2:       #161b22;
+      --bg3:       #21262d;
+      --bg4:       #2d333b;
+      --accent:    #7c3aed;
+      --accent-l:  #a78bfa;
+      --accent-d:  #5b21b6;
+      --txt:       #f0f6fc;
+      --txt2:      #8b949e;
+      --txt3:      #484f58;
+      --border:    #30363d;
+      --border2:   #3d444d;
+      --green:     #3fb950;
+      --blue:      #58a6ff;
+      --red:       #f85149;
+      --yellow:    #d29922;
+    }
+    * { margin:0; padding:0; box-sizing:border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans JP', sans-serif;
+      background: var(--bg);
+      color: var(--txt);
+      min-height: 100vh;
+      line-height: 1.6;
+    }
+
+    /* ─── HEADER ──────────────────────── */
+    header {
+      background: var(--bg2);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .logo {
+      width: 38px; height: 38px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-l));
+      border-radius: 9px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px; flex-shrink: 0;
+    }
+    .header-info h1 { font-size: 17px; font-weight: 700; }
+    .header-info p  { font-size: 12px; color: var(--txt2); }
+
+    /* ─── LAYOUT ──────────────────────── */
+    .layout {
+      display: grid;
+      grid-template-columns: 360px 1fr;
+      height: calc(100vh - 67px);
+    }
+
+    /* ─── INPUT PANEL ─────────────────── */
+    .input-panel {
+      background: var(--bg2);
+      border-right: 1px solid var(--border);
+      overflow-y: auto;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    .field-label {
+      font-size: 12px; font-weight: 600;
+      color: var(--txt2);
+      text-transform: uppercase; letter-spacing: 0.6px;
+      margin-bottom: 7px;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .badge-req { color: var(--red); }
+    .badge-opt { color: var(--txt3); font-weight:400; text-transform:none; letter-spacing:0; font-size:11px; }
+
+    .inp {
+      width: 100%;
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--txt);
+      padding: 9px 12px;
+      font-size: 13px;
+      font-family: inherit;
+      transition: border-color .2s, box-shadow .2s;
+      resize: vertical;
+    }
+    .inp:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(124,58,237,.18);
+    }
+    .inp::placeholder { color: var(--txt3); }
+
+    .apikey-wrap { position: relative; }
+    .apikey-wrap .inp { padding-right: 40px; }
+    .eye-btn {
+      position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+      background: none; border: none; color: var(--txt2);
+      cursor: pointer; font-size: 15px; padding: 3px;
+    }
+    .field-note { font-size: 11px; color: var(--txt3); margin-top: 4px; }
+
+    /* Style grid */
+    .style-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 7px;
+    }
+    .style-opt {
+      background: var(--bg3);
+      border: 2px solid var(--border);
+      border-radius: 8px;
+      padding: 9px 11px;
+      cursor: pointer;
+      transition: border-color .18s, background .18s;
+    }
+    .style-opt:hover { border-color: var(--accent-l); }
+    .style-opt.active {
+      border-color: var(--accent);
+      background: rgba(124,58,237,.12);
+    }
+    .style-opt .sn { font-size: 13px; font-weight: 600; }
+    .style-opt .sd { font-size: 11px; color: var(--txt2); margin-top: 1px; }
+
+    /* Generate button */
+    .gen-btn {
+      width: 100%;
+      background: linear-gradient(135deg, var(--accent), var(--accent-d));
+      border: none; border-radius: 8px;
+      color: #fff;
+      padding: 12px;
+      font-size: 15px; font-weight: 600;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center; gap: 9px;
+      transition: all .2s;
+      margin-top: 4px;
+    }
+    .gen-btn:hover:not(:disabled) {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 20px rgba(124,58,237,.4);
+    }
+    .gen-btn:disabled { opacity: .55; cursor: not-allowed; }
+
+    .spinner {
+      width: 16px; height: 16px;
+      border: 2px solid rgba(255,255,255,.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    hr.div { border: none; border-top: 1px solid var(--border); }
+
+    /* Image upload */
+    .img-upload-area {
+      border: 2px dashed var(--border2);
+      border-radius: 8px; padding: 14px 10px;
+      text-align: center; cursor: pointer;
+      transition: border-color .18s, background .18s;
+      margin-top: 8px;
+    }
+    .img-upload-area:hover, .img-upload-area.drag-over {
+      border-color: var(--accent-l);
+      background: rgba(124,58,237,.06);
+    }
+    .img-upload-area .up-ico  { font-size: 22px; }
+    .img-upload-area .up-txt  { font-size: 12px; color: var(--txt2); margin-top: 3px; }
+    .img-upload-area .up-sub  { font-size: 11px; color: var(--txt3); margin-top: 1px; }
+    .img-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+      gap: 7px; margin-top: 8px;
+    }
+    .img-thumb {
+      position: relative; border-radius: 6px;
+      border: 1px solid var(--border);
+      display: flex; flex-direction: column;
+      overflow: hidden;
+    }
+    .img-thumb img { width: 100%; aspect-ratio: 1; object-fit: cover; display: block; flex-shrink: 0; }
+    .img-thumb .rm-btn {
+      position: absolute; top: 3px; right: 3px;
+      background: rgba(0,0,0,.75); border: none; color: #fff;
+      border-radius: 50%; width: 18px; height: 18px; font-size: 11px;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+    }
+    .char-name-inp {
+      width: 100%; background: var(--bg4);
+      border: none; border-top: 1px solid var(--border);
+      color: var(--txt); font-size: 11px; padding: 4px 7px;
+      font-family: inherit; outline: none; text-align: center;
+    }
+    .char-name-inp::placeholder { color: var(--txt3); }
+    .char-name-inp:focus { background: var(--bg3); color: var(--accent-l); }
+
+    /* Stop button */
+    .stop-img-btn {
+      background: rgba(248,81,73,.1); border: 1px solid rgba(248,81,73,.4);
+      border-radius: 6px; color: var(--red);
+      padding: 7px 13px; font-size: 12px;
+      cursor: pointer; transition: all .18s;
+      align-items: center; gap: 5px; display: none;
+    }
+    .stop-img-btn.visible { display: flex; }
+    .stop-img-btn:hover { background: rgba(248,81,73,.2); }
+
+    /* ─── OUTPUT PANEL ────────────────── */
+    .output-panel {
+      overflow-y: auto;
+      padding: 24px;
+    }
+
+    /* Empty state */
+    .empty {
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      height: 70%;
+      color: var(--txt3); text-align: center; gap: 12px;
+    }
+    .empty .ei { font-size: 52px; }
+    .empty h3  { font-size: 16px; color: var(--txt2); }
+    .empty p   { font-size: 13px; max-width: 280px; }
+
+    /* Error */
+    .err-banner {
+      background: rgba(248,81,73,.1);
+      border: 1px solid rgba(248,81,73,.35);
+      border-radius: 8px; padding: 12px 16px;
+      color: var(--red); font-size: 13px;
+      margin-bottom: 16px;
+      display: none;
+    }
+
+    /* Stats */
+    .stats-bar {
+      display: flex; gap: 0;
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      margin-bottom: 20px;
+    }
+    .stat {
+      flex: 1; text-align: center;
+      padding: 12px 8px;
+      border-right: 1px solid var(--border);
+    }
+    .stat:last-child { border-right: none; }
+    .stat-val { font-size: 22px; font-weight: 700; color: var(--accent-l); }
+    .stat-lbl { font-size: 11px; color: var(--txt3); text-transform: uppercase; letter-spacing: .5px; }
+
+    /* Results header */
+    .res-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 18px;
+    }
+    .res-title { font-size: 20px; font-weight: 700; }
+    .btn-row { display: flex; gap: 8px; }
+
+    .act-btn {
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--txt2);
+      padding: 7px 13px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: all .18s;
+      display: flex; align-items: center; gap: 5px;
+    }
+    .act-btn:hover { border-color: var(--accent-l); color: var(--accent-l); }
+
+    /* Section heading */
+    .sec-head {
+      font-size: 12px; font-weight: 700;
+      color: var(--txt2);
+      text-transform: uppercase; letter-spacing: .8px;
+      margin: 24px 0 11px;
+      display: flex; align-items: center; gap: 7px;
+    }
+    .sec-head:first-of-type { margin-top: 0; }
+
+    /* Scene table */
+    .scene-table {
+      width: 100%; border-collapse: collapse;
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 10px; overflow: hidden;
+    }
+    .scene-table th {
+      background: var(--bg4);
+      padding: 9px 13px;
+      text-align: left; font-size: 11px; font-weight: 600;
+      color: var(--txt2);
+      text-transform: uppercase; letter-spacing: .5px;
+      border-bottom: 1px solid var(--border);
+    }
+    .scene-table td {
+      padding: 10px 13px;
+      font-size: 13px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+    .scene-table tr:last-child td { border-bottom: none; }
+    .scene-table tr:hover td { background: var(--bg4); }
+    .s-badge {
+      background: var(--accent); color: #fff;
+      padding: 2px 8px; border-radius: 4px;
+      font-size: 12px; font-weight: 700;
+    }
+
+    /* Scene divider (full-width row inside shots-list grid) */
+    .scene-divider {
+      grid-column: 1 / -1;
+      display: flex; align-items: center; gap: 10px;
+      background: var(--bg2);
+      border: 1px solid var(--border2);
+      border-radius: 10px;
+      padding: 10px 14px;
+      margin-top: 6px;
+    }
+    .scene-divider:first-child { margin-top: 0; }
+    .scene-div-info {
+      display: flex; align-items: center; gap: 8px;
+      flex: 1; min-width: 0;
+    }
+    .scene-div-loc {
+      font-size: 13px; color: var(--txt); font-weight: 600;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .scene-div-chars { font-size: 12px; color: var(--txt3); }
+    .scene-div-bg { margin-left: auto; display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+    .scene-bg-add-btn {
+      background: var(--bg4); border: 1px dashed var(--border2);
+      border-radius: 6px; color: var(--txt2);
+      padding: 5px 10px; font-size: 11px; cursor: pointer;
+      transition: all .18s; white-space: nowrap;
+    }
+    .scene-bg-add-btn:hover { border-color: var(--accent-l); color: var(--accent-l); }
+    .scene-bg-thumb {
+      position: relative; width: 52px; height: 36px;
+      border-radius: 5px; overflow: hidden;
+      border: 1px solid var(--border2); cursor: pointer;
+    }
+    .scene-bg-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .scene-bg-thumb .rm-btn {
+      position: absolute; top: 1px; right: 1px;
+      background: rgba(0,0,0,.8); border: none; color: #fff;
+      border-radius: 50%; width: 14px; height: 14px; font-size: 9px;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+    }
+    /* Scene bg dropdown */
+    .scene-bg-menu { position: relative; }
+    .sbm-dropdown {
+      position: absolute; top: calc(100% + 6px); right: 0;
+      background: var(--bg3); border: 1px solid var(--border2);
+      border-radius: 8px; padding: 4px;
+      min-width: 190px; z-index: 200;
+      box-shadow: 0 8px 24px rgba(0,0,0,.5);
+      display: none;
+    }
+    .sbm-dropdown.open { display: block; }
+    .sbm-item {
+      padding: 7px 11px; border-radius: 5px;
+      font-size: 12px; cursor: pointer; color: var(--txt2);
+      transition: background .12s; white-space: nowrap;
+    }
+    .sbm-item:hover { background: var(--bg4); color: var(--txt); }
+    .sbm-prompt-row { padding: 5px 4px 3px; display: none; }
+    .sbm-prompt-row.open { display: block; }
+    .sbm-prompt-row textarea {
+      width: 100%; background: var(--bg4);
+      border: 1px solid var(--border2); border-radius: 5px;
+      color: var(--txt); font-size: 11px; padding: 6px 8px;
+      resize: none; font-family: inherit; outline: none; min-height: 52px;
+    }
+    .sbm-prompt-row textarea:focus { border-color: var(--accent-l); }
+    .sbm-prompt-row button {
+      margin-top: 5px; width: 100%;
+      background: var(--accent); border: none; border-radius: 5px;
+      color: #fff; font-size: 12px; padding: 6px;
+      cursor: pointer; transition: background .15s;
+    }
+    .sbm-prompt-row button:hover { background: var(--accent-d); }
+    .sbm-prompt-row button:disabled { opacity: .5; cursor: not-allowed; }
+    .scene-bg-generating {
+      display: flex; align-items: center; gap: 5px;
+      font-size: 11px; color: var(--txt3); padding: 2px 0;
+    }
+
+    /* Shot cards */
+    .shots-list {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      align-items: start;
+    }
+
+    .shot-card {
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 12px; overflow: hidden;
+      transition: border-color .18s;
+    }
+    .shot-card:hover { border-color: var(--border2); }
+
+    .card-head {
+      background: var(--bg4);
+      padding: 10px 14px;
+      display: flex; align-items: center; gap: 9px;
+      border-bottom: 1px solid var(--border);
+    }
+    .cut-badge {
+      background: linear-gradient(135deg, var(--accent), var(--accent-d));
+      color: #fff; padding: 3px 10px; border-radius: 5px;
+      font-size: 13px; font-weight: 700;
+      font-family: 'Courier New', monospace; letter-spacing: .5px;
+    }
+    .s-ref { color: var(--txt3); font-size: 12px; }
+    .char-tag { color: var(--txt2); font-size: 12px; }
+    .dur-tag {
+      margin-left: auto;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 4px; padding: 2px 8px;
+      font-size: 11px; color: var(--blue); font-family: monospace;
+    }
+
+    .card-body { padding: 13px 14px; }
+
+    .spec-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 11px; }
+    .stag {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 4px; padding: 3px 9px;
+      font-size: 12px; color: var(--txt2);
+    }
+    .stag.loc { border-color: rgba(210,153,34,.35); color: var(--yellow); }
+
+    .info-grid {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 9px; margin-bottom: 10px;
+    }
+    .info-box {
+      background: var(--bg); border-radius: 7px;
+      padding: 9px 11px;
+    }
+    .info-lbl { font-size: 11px; font-weight: 600; color: var(--txt3); text-transform: uppercase; letter-spacing: .4px; margin-bottom: 3px; }
+    .info-val { font-size: 13px; color: var(--txt); }
+    .info-val.dia { color: var(--accent-l); font-style: italic; }
+
+    .meta-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+    .mood-tag {
+      background: rgba(63,185,80,.12);
+      border: 1px solid rgba(63,185,80,.3);
+      color: var(--green);
+      padding: 3px 9px; border-radius: 4px; font-size: 12px;
+    }
+
+    /* Prompt section */
+    .prompt-sec {
+      border-top: 1px solid var(--border);
+      padding-top: 11px; margin-top: 2px;
+    }
+    .prompt-head {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 7px;
+    }
+    .prompt-lbl { font-size: 11px; font-weight: 600; color: var(--txt3); text-transform: uppercase; letter-spacing: .5px; }
+    .copy-btn {
+      background: var(--bg4);
+      border: 1px solid var(--border);
+      border-radius: 4px; color: var(--txt2);
+      padding: 3px 9px; font-size: 11px;
+      cursor: pointer; transition: all .18s;
+      display: flex; align-items: center; gap: 4px;
+    }
+    .copy-btn:hover { border-color: var(--green); color: var(--green); }
+    .copy-btn.ok { border-color: var(--green); color: var(--green); }
+
+    .prompt-txt {
+      font-family: 'Courier New', monospace; font-size: 11.5px;
+      color: var(--txt2);
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: 6px; padding: 9px 11px;
+      line-height: 1.75; word-break: break-word;
+    }
+
+    /* ─── IMAGE GENERATION ────────────────────── */
+    .imggen-section {
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 8px; padding: 12px 14px;
+    }
+    .imggen-head {
+      font-size: 12px; font-weight: 600; color: var(--txt2);
+      text-transform: uppercase; letter-spacing: .6px;
+      display: flex; align-items: center; gap: 7px;
+      margin-bottom: 10px;
+    }
+    /* Generated image inside shot card */
+    .gen-img-block {
+      border-radius: 8px; overflow: hidden;
+      border: 1px solid var(--border); margin-bottom: 10px;
+      display: none; position: relative;
+    }
+    .gen-img-block.visible { display: block; }
+    .gen-img-block img { width: 100%; display: block; height: auto; cursor: zoom-in; }
+    .gen-img-loading {
+      padding: 20px; text-align: center; color: var(--txt2); font-size: 12px;
+      background: var(--bg); display: flex; flex-direction: column;
+      align-items: center; gap: 8px;
+    }
+
+    /* Image generate buttons */
+    .img-gen-btn {
+      background: var(--bg4); border: 1px solid var(--border);
+      border-radius: 4px; color: var(--txt2);
+      padding: 3px 9px; font-size: 11px; font-weight: 500;
+      cursor: pointer; transition: all .18s;
+      display: flex; align-items: center; gap: 4px;
+    }
+    .img-gen-btn:hover:not(:disabled) { border-color: var(--blue); color: var(--blue); }
+    .img-gen-btn.busy { border-color: var(--yellow); color: var(--yellow); }
+    .img-gen-btn.done { border-color: var(--green); color: var(--green); }
+    .img-gen-btn:disabled { opacity: .5; cursor: not-allowed; }
+    .bulk-img-btn {
+      background: rgba(63,185,80,.1); border: 1px solid rgba(63,185,80,.35);
+      border-radius: 6px; color: var(--green);
+      padding: 7px 13px; font-size: 12px;
+      cursor: pointer; transition: all .18s;
+      display: flex; align-items: center; gap: 5px;
+    }
+    .bulk-img-btn:hover:not(:disabled) { background: rgba(63,185,80,.18); }
+    .bulk-img-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+    /* Lightbox */
+    #imgLightbox {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,.92);
+      z-index: 9999; cursor: zoom-out;
+      display: none;
+      align-items: center; justify-content: center;
+      padding: 24px;
+    }
+    #imgLightbox.open { display: flex; }
+    #lightboxImg {
+      max-width: 90vw; max-height: 90vh;
+      border-radius: 10px; object-fit: contain;
+      box-shadow: 0 24px 80px rgba(0,0,0,.6);
+      cursor: default;
+    }
+    #lightboxClose {
+      position: fixed; top: 16px; right: 20px;
+      background: rgba(255,255,255,.12); border: none;
+      color: #fff; font-size: 22px; line-height: 1;
+      width: 36px; height: 36px; border-radius: 50%;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      transition: background .18s;
+    }
+    #lightboxClose:hover { background: rgba(255,255,255,.25); }
+
+    /* Cuts slider */
+    .cuts-slider {
+      -webkit-appearance: none; appearance: none;
+      width: 100%; height: 4px;
+      background: var(--bg4); border-radius: 2px;
+      outline: none; cursor: pointer; border: none;
+      padding: 0; margin-top: 8px;
+    }
+    .cuts-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 16px; height: 16px;
+      border-radius: 50%;
+      background: var(--accent);
+      cursor: pointer;
+      border: 2px solid var(--accent-l);
+      box-shadow: 0 0 6px rgba(124,58,237,.4);
+    }
+    .cuts-slider::-moz-range-thumb {
+      width: 16px; height: 16px;
+      border-radius: 50%;
+      background: var(--accent);
+      cursor: pointer;
+      border: 2px solid var(--accent-l);
+    }
+
+    /* Scrollbars */
+    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+
+    /* Responsive */
+    @media (max-width: 860px) {
+      .layout { grid-template-columns: 1fr; height: auto; }
+      .input-panel { height: auto; }
+      .info-grid { grid-template-columns: 1fr; }
+      .shots-list { grid-template-columns: 1fr; }
+    }
+    @media (min-width: 861px) and (max-width: 1100px) {
+      .shots-list { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">🎬</div>
+  <div class="header-info">
+    <h1>アニメ絵コンテ生成ツール</h1>
+    <p>脚本からカット割・ショットリスト・画像プロンプトを自動生成</p>
+  </div>
+</header>
+
+<div class="layout">
+
+  <!-- ── INPUT PANEL ─────────────────── -->
+  <aside class="input-panel">
+
+    <!-- Google API Key -->
+    <div>
+      <div class="field-label">Google API Key <span class="badge-req">*</span></div>
+      <div class="apikey-wrap">
+        <input type="password" id="apiKey" class="inp" placeholder="AIza..." autocomplete="off">
+        <button class="eye-btn" onclick="toggleEye()" title="表示/非表示">👁</button>
+      </div>
+      <p class="field-note">🔒 ブラウザのlocalStorageにのみ保存されます</p>
+    </div>
+
+    <!-- Text gen model -->
+    <div>
+      <div class="field-label">テキスト生成モデル</div>
+      <select id="geminiModel" class="inp" style="resize:none;cursor:pointer">
+        <optgroup label="── 安定版 ──">
+          <option value="gemini-2.5-flash">Gemini 2.5 Flash（推奨・バランス型）</option>
+          <option value="gemini-2.5-pro">Gemini 2.5 Pro（高精度）</option>
+          <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash Lite（高速・低コスト）</option>
+        </optgroup>
+        <optgroup label="── プレビュー ──">
+          <option value="gemini-3.1-pro-preview">Gemini 3.1 Pro Preview（最高性能）</option>
+          <option value="gemini-3.1-flash-lite">Gemini 3.1 Flash Lite（最新・軽量）</option>
+          <option value="gemini-3-flash-preview">Gemini 3 Flash Preview</option>
+        </optgroup>
+      </select>
+    </div>
+
+    <hr class="div">
+
+    <!-- Image generation settings -->
+    <div class="imggen-section">
+      <div class="imggen-head">🖼 画像生成（NanoBanana）</div>
+      <p class="field-note" style="margin-bottom:8px">上の Google API キーをそのまま使います</p>
+
+      <div class="field-label" style="margin-bottom:6px">モデル</div>
+      <select id="imgGenModel" class="inp" style="resize:none;cursor:pointer;font-size:12px">
+        <option value="gemini-3.1-flash-image-preview">🍌 Nano Banana 2 ★推奨</option>
+        <option value="gemini-2.5-flash-image">🍌 Gemini 2.5 Flash Image</option>
+        <option value="gemini-3-pro-image-preview">🍌 Nano Banana Pro</option>
+      </select>
+
+      <div class="field-label" style="margin-top:10px;margin-bottom:6px">アスペクト比</div>
+      <select id="imgAspectRatio" class="inp" style="resize:none;cursor:pointer;font-size:12px">
+        <option value="16:9">16:9 横長（シネマ）</option>
+        <option value="1:1">1:1 スクエア</option>
+        <option value="9:16">9:16 縦長（スマホ）</option>
+        <option value="4:3">4:3 スタンダード</option>
+        <option value="3:4">3:4 ポートレート</option>
+      </select>
+
+      <div class="field-label" style="margin-top:10px;margin-bottom:6px">解像度</div>
+      <select id="imgResolution" class="inp" style="resize:none;cursor:pointer;font-size:12px">
+        <option value="">auto（デフォルト）</option>
+        <option value="1K">1K</option>
+        <option value="2K">2K</option>
+        <option value="4K">4K（高画質）</option>
+      </select>
+    </div>
+
+    <!-- Script -->
+    <div>
+      <div class="field-label">
+        脚本テキスト <span class="badge-req">*</span>
+        <span id="charCnt" style="margin-left:auto;font-size:11px;color:var(--txt3);font-weight:400;text-transform:none;letter-spacing:0">0字</span>
+      </div>
+      <textarea id="script" class="inp" rows="11"
+        placeholder="例：【シーン1 - 校舎屋上・夕方】
+夕焼けが空を染める。
+高校生の田中が手すりにもたれ、遠くを見ている。
+鈴木（後ろから）「また一人でいる」
+田中（振り向かず）「…うるさい」"></textarea>
+    </div>
+
+    <!-- Characters -->
+    <div>
+      <div class="field-label">キャラクター情報 <span class="badge-opt">任意</span></div>
+      <textarea id="chars" class="inp" rows="4"
+        placeholder="例：
+田中一郎：黒髪ショート、青い目、グレーの制服
+鈴木花子：茶色ロング、緑の目、白ブラウス+紺スカート"></textarea>
+
+      <!-- Character reference images -->
+      <input type="file" id="charImgInput" accept="image/*"
+        multiple style="display:none" onchange="handleImageUpload(event)">
+      <div class="img-upload-area" id="imgDropArea"
+        onclick="document.getElementById('charImgInput').click()"
+        ondragover="event.preventDefault();this.classList.add('drag-over')"
+        ondragleave="this.classList.remove('drag-over')"
+        ondrop="handleDrop(event)">
+        <div class="up-ico">📸</div>
+        <div class="up-txt">クリック or ドロップで参照画像を追加</div>
+        <div class="up-sub">JPG / PNG / WebP（複数可）</div>
+      </div>
+      <div class="img-grid" id="imgGrid"></div>
+    </div>
+
+    <!-- Style -->
+    <div>
+      <div class="field-label">アニメスタイル <span class="badge-opt">任意</span></div>
+      <div class="style-grid" id="styleGrid">
+        <div class="style-opt active" data-style="studio_ghibli" onclick="pickStyle(this)">
+          <div class="sn">🌿 ジブリ風</div>
+          <div class="sd">水彩・自然・柔らか</div>
+        </div>
+        <div class="style-opt" data-style="shonen_manga" onclick="pickStyle(this)">
+          <div class="sn">⚡ 少年漫画</div>
+          <div class="sd">ダイナミック・アクション</div>
+        </div>
+        <div class="style-opt" data-style="seinen_anime" onclick="pickStyle(this)">
+          <div class="sn">🌙 青年アニメ</div>
+          <div class="sd">リアル調・ドラマ</div>
+        </div>
+        <div class="style-opt" data-style="chibi" onclick="pickStyle(this)">
+          <div class="sn">🌸 ちびキャラ</div>
+          <div class="sd">可愛い・パステル</div>
+        </div>
+        <div class="style-opt" data-style="custom" onclick="pickStyle(this)" style="grid-column:1/-1">
+          <div class="sn">✏️ カスタム</div>
+          <div class="sd">スタイルを自由に記述</div>
+        </div>
+      </div>
+      <textarea id="customStyle" class="inp" rows="3" style="margin-top:8px;display:none"
+        placeholder="例：Makoto Shinkai style, cinematic lighting, lens flare, detailed city backgrounds"></textarea>
+    </div>
+
+    <!-- Max cuts -->
+    <div>
+      <div class="field-label">
+        最大カット数
+        <span style="margin-left:auto;font-weight:700;color:var(--accent-l);font-size:13px;text-transform:none;letter-spacing:0">
+          <span id="maxCutsDisp">20</span> カット
+        </span>
+      </div>
+      <input type="range" id="maxCuts" min="5" max="60" value="20" step="5"
+        class="cuts-slider"
+        oninput="document.getElementById('maxCutsDisp').textContent=this.value">
+      <div style="display:flex;justify-content:space-between;margin-top:3px">
+        <span class="field-note">5</span>
+        <span class="field-note">60</span>
+      </div>
+    </div>
+
+    <!-- Generate -->
+    <button class="gen-btn" id="genBtn" onclick="generate()">
+      <span id="btnIco">🎬</span>
+      <span id="btnTxt">絵コンテを生成する</span>
+    </button>
+
+  </aside>
+
+  <!-- ── OUTPUT PANEL ────────────────── -->
+  <main class="output-panel" id="out">
+
+    <div class="err-banner" id="errBanner"></div>
+
+    <div class="empty" id="emptyState">
+      <div class="ei">🎞️</div>
+      <h3>絵コンテがここに表示されます</h3>
+      <p>左のパネルに脚本を入力して「絵コンテを生成する」を押してください</p>
+    </div>
+
+    <div id="results" style="display:none"></div>
+
+  </main>
+</div>
+
+<!-- ── LIGHTBOX ─────────────────────────────── -->
+<div id="imgLightbox" onclick="closeLightbox()">
+  <button id="lightboxClose" onclick="closeLightbox()" title="閉じる">✕</button>
+  <img id="lightboxImg" src="" alt="拡大表示" onclick="event.stopPropagation()">
+</div>
+
+<script>
+// ─── State ────────────────────────────────────
+let style       = 'studio_ghibli';
+let data        = null;   // { scene_summary, shots }
+let charImages  = [];     // [{ base64, mimeType, name, charName }]
+let sceneImages = {};     // { scene_no: { base64, mimeType, name } }
+let genImages   = {};     // { cut_no: dataURL or URL }
+let stopBulkGen = false;
+
+// ─── Init ─────────────────────────────────────
+window.addEventListener('load', () => {
+  const savedKey = localStorage.getItem('anm_google_key');
+  if (savedKey) document.getElementById('apiKey').value = savedKey;
+
+  const savedModel = localStorage.getItem('anm_gemini_model');
+  if (savedModel) document.getElementById('geminiModel').value = savedModel;
+
+  const sc = document.getElementById('script');
+  sc.addEventListener('input', () => {
+    document.getElementById('charCnt').textContent = sc.value.length + '字';
+  });
+
+  // シーン背景メニュー：外側クリックで閉じる
+  document.addEventListener('click', e => {
+    if (!e.target.closest('.scene-bg-menu')) {
+      document.querySelectorAll('.sbm-dropdown.open')
+        .forEach(el => el.classList.remove('open'));
+    }
+  });
+});
+
+// ─── Style picker ──────────────────────────────
+function pickStyle(el) {
+  document.querySelectorAll('.style-opt').forEach(o => o.classList.remove('active'));
+  el.classList.add('active');
+  style = el.dataset.style;
+  document.getElementById('customStyle').style.display = style === 'custom' ? 'block' : 'none';
+}
+
+// ─── Eye toggle ───────────────────────────────
+function toggleEye() {
+  const f = document.getElementById('apiKey');
+  f.type = f.type === 'password' ? 'text' : 'password';
+}
+
+// ─── Lightbox ─────────────────────────────────
+function openLightbox(cutNo) {
+  const src = genImages[cutNo];
+  if (!src) return;
+  document.getElementById('lightboxImg').src = src;
+  document.getElementById('imgLightbox').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function closeLightbox() {
+  document.getElementById('imgLightbox').classList.remove('open');
+  document.body.style.overflow = '';
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbox(); });
+
+function getImgApiKey() {
+  // HTTP headers must be ASCII printable only (0x20–0x7E)
+  return document.getElementById('apiKey').value.replace(/[^\x20-\x7E]/g, '').trim();
+}
+
+// ─── Image upload ──────────────────────────────
+function handleDrop(event) {
+  event.preventDefault();
+  document.getElementById('imgDropArea').classList.remove('drag-over');
+  processFiles(Array.from(event.dataTransfer.files));
+}
+
+function handleImageUpload(event) {
+  processFiles(Array.from(event.target.files));
+  event.target.value = '';
+}
+
+function processFiles(files) {
+  const imageFiles = files.filter(f =>
+    f.type.startsWith('image/') || /\.(jpe?g|png|webp|gif|bmp|avif)$/i.test(f.name)
+  );
+  if (!imageFiles.length) return;
+  Promise.all(imageFiles.map(f => resizeImage(f).catch(() => null))).then(results => {
+    const imgs = results.filter(Boolean);
+    if (!imgs.length) return;
+    charImages.push(...imgs);
+    renderCharImages();
+  });
+}
+
+// Resize to max 768px on longest side, output JPEG
+function resizeImage(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const MAX = 768;
+        let w = img.naturalWidth || 1, h = img.naturalHeight || 1;
+        const ratio = Math.min(MAX / w, MAX / h, 1);
+        w = Math.round(w * ratio);
+        h = Math.round(h * ratio);
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.88);
+        resolve({ base64: dataUrl.split(',')[1], mimeType: 'image/jpeg', name: file.name, charName: '' });
+      };
+      img.onerror = () => reject(new Error('Image load failed: ' + file.name));
+      img.src = e.target.result;
+    };
+    reader.onerror = () => reject(new Error('File read failed: ' + file.name));
+    reader.readAsDataURL(file);
+  });
+}
+
+function removeCharImage(idx) {
+  charImages.splice(idx, 1);
+  renderCharImages();
+}
+
+function updateCharName(idx, val) {
+  if (charImages[idx]) charImages[idx].charName = val.trim();
+}
+
+function renderCharImages() {
+  const grid = document.getElementById('imgGrid');
+  grid.innerHTML = charImages.map((img, i) => `
+    <div class="img-thumb">
+      <img src="data:${img.mimeType};base64,${img.base64}" alt="${esc(img.name)}">
+      <button class="rm-btn" onclick="removeCharImage(${i})" title="削除">×</button>
+      <input class="char-name-inp" type="text" value="${esc(img.charName || '')}"
+        placeholder="キャラ名" oninput="updateCharName(${i}, this.value)"
+        title="このキャラの名前（台本上と一致させると画像生成時に参照されます）">
+    </div>`).join('');
+}
+
+// ─── Main generate ────────────────────────────
+async function generate() {
+  const key    = document.getElementById('apiKey').value.trim();
+  const script = document.getElementById('script').value.trim();
+  const chars  = document.getElementById('chars').value.trim();
+  const custom = document.getElementById('customStyle').value.trim();
+
+  const maxCuts = parseInt(document.getElementById('maxCuts')?.value || '20');
+
+  clearError();
+  if (!key)    return showError('APIキーを入力してください。');
+  if (!script) return showError('脚本テキストを入力してください。');
+
+  // Save key
+  localStorage.setItem('anm_google_key', key);
+  setLoading(true);
+
+  const styleMap = {
+    studio_ghibli : 'studio_ghibli (Studio Ghibli inspired, watercolor background, soft shading, detailed environment)',
+    shonen_manga  : 'shonen_manga (Shonen Manga inspired, dynamic composition, bold outlines, action-oriented)',
+    seinen_anime  : 'seinen_anime (Seinen Anime inspired, realistic proportions, dramatic lighting, detailed)',
+    chibi         : 'chibi (Chibi style, cute proportions, simple background, pastel colors)',
+    custom        : `custom: ${custom}`,
+  };
+
+  const userMsg = `以下の脚本を解析して、アニメ絵コンテのショットリストを生成してください。
+
+## 脚本
+${script}
+
+${chars ? `## キャラクター情報\n${chars}\n` : ''}
+## アニメスタイル
+${styleMap[style]}
+
+## 出力形式
+必ず以下の構造のJSONのみを返してください（マークダウンのコードブロック \`\`\`json ... \`\`\` で囲む）:
+
+\`\`\`json
+{
+  "scene_summary": [
+    {
+      "scene_no": "S01",
+      "location": "場所",
+      "time_of_day": "時間帯",
+      "characters": ["キャラ名"],
+      "summary": "このシーンの1〜2文の概要"
+    }
+  ],
+  "shots": [
+    {
+      "cut_no": "C001",
+      "scene_no": "S01",
+      "duration_sec": 3.0,
+      "location": "場所",
+      "time_of_day": "昼",
+      "characters": ["キャラ名"],
+      "camera_angle": "アイレベル",
+      "camera_move": "固定",
+      "shot_size": "ロングショット",
+      "action": "このカットで起きること",
+      "dialogue": "台詞（なければ空文字）",
+      "se_bgm": "効果音・BGM指示",
+      "mood": "雰囲気・感情トーン",
+      "image_prompt": "英語の画像生成プロンプト"
+    }
+  ]
+}
+\`\`\`
+
+image_promptは英語で記述し形式は: [SHOT SIZE], [CAMERA ANGLE], [SCENE DESCRIPTION], [CHARACTER DESCRIPTIONS], [ACTION/POSE], [LIGHTING], [BACKGROUND], [STYLE TAGS], high quality, masterpiece, detailed, 4k, anime illustration
+
+**重要：カット数は全体で最大${maxCuts}カットまでとすること。**`;
+
+  try {
+    genImages = {};  // clear previous images on new generation
+    const text = await callGemini(key, userMsg);
+
+    data = parseJSON(text);
+    render(data);
+
+  } catch (e) {
+    showError(e.message);
+  } finally {
+    setLoading(false);
+  }
+}
+
+// ─── Google Gemini API ────────────────────────
+async function callGemini(key, userMsg) {
+  const modelEl = document.getElementById('geminiModel');
+  const model   = modelEl.value || 'gemini-2.5-flash';
+  localStorage.setItem('anm_gemini_model', model);
+
+  // Build parts: images first, then text
+  const parts = [];
+  for (const img of charImages) {
+    parts.push({ inline_data: { mime_type: img.mimeType, data: img.base64 } });
+  }
+  parts.push({ text: userMsg });
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
+      contents: [{ role: 'user', parts }],
+      generationConfig: { maxOutputTokens: 16000 },
+    }),
+  });
+  if (!res.ok) {
+    const e = await res.json().catch(() => ({}));
+    throw new Error(e.error?.message || `Google APIエラー (${res.status})`);
+  }
+  const d = await res.json();
+  return d.candidates?.[0]?.content?.parts?.[0]?.text || '';
+}
+
+// ─── Image generation ─────────────────────────
+async function generateCutImage(idx) {
+  if (!data || !data.shots[idx]) return;
+  const sh = data.shots[idx];
+
+  const key = getImgApiKey();
+  if (!key) return showError('Google APIキーを入力してください。');
+
+  const btn  = document.getElementById('igb' + idx);
+  const wrap = document.getElementById('gimg' + idx);
+  if (btn)  { btn.disabled = true; btn.className = 'img-gen-btn busy'; btn.innerHTML = '<div class="spinner" style="width:10px;height:10px;border-width:1.5px;margin:0 2px 0 0"></div>生成中'; }
+  if (wrap) { wrap.className = 'gen-img-block visible'; wrap.innerHTML = '<div class="gen-img-loading"><div class="spinner"></div><span>画像生成中...</span></div>'; }
+
+  // シーン背景参照画像（空間一貫性）
+  const sceneBg = sceneImages[sh.scene_no] || null;
+
+  // このカットの登場キャラに対応する参照画像を検索
+  const cutChars = (sh.characters || []).map(c => c.toLowerCase());
+  const charRefs = charImages.filter(ci => {
+    if (!ci.charName) return false;
+    const cn = ci.charName.toLowerCase();
+    return cutChars.some(c => c.includes(cn) || cn.includes(c));
+  });
+
+  // 背景参照を先頭に、キャラ参照をその後に結合
+  const refImages = [
+    ...(sceneBg ? [{ ...sceneBg, refType: 'scene', label: sh.location || sh.scene_no }] : []),
+    ...charRefs,
+  ];
+
+  try {
+    const src = await callGeminiImage(key, sh.image_prompt, refImages);
+    genImages[sh.cut_no] = src;
+    if (wrap) {
+      wrap.className = 'gen-img-block visible';
+      wrap.innerHTML = `<img src="${src}" alt="${esc(sh.cut_no)}" onclick="openLightbox('${esc(sh.cut_no)}')" title="クリックで拡大"><a href="${src}" download="${esc(sh.cut_no)}.png" style="position:absolute;bottom:6px;right:8px;background:rgba(0,0,0,.65);color:#fff;font-size:10px;padding:3px 8px;border-radius:4px;text-decoration:none" onclick="event.stopPropagation()">⬇ 保存</a>`;
+    }
+    if (btn)  { btn.disabled = false; btn.className = 'img-gen-btn done'; btn.textContent = '✅ 再生成'; }
+  } catch (err) {
+    if (wrap) { wrap.className = 'gen-img-block'; wrap.innerHTML = ''; }
+    if (btn)  { btn.disabled = false; btn.className = 'img-gen-btn'; btn.textContent = '🖼 生成'; }
+    showError('画像生成エラー: ' + err.message);
+  }
+}
+
+async function generateAllImages() {
+  if (!data) return;
+  const key = getImgApiKey();
+  if (!key) return showError('APIキーを設定してください。（全角文字が含まれていないか確認してください）');
+  stopBulkGen = false;
+  const genBtn  = document.getElementById('bulkImgBtn');
+  const stopBtn = document.getElementById('stopImgBtn');
+  if (genBtn)  { genBtn.disabled = true; genBtn.textContent = '⏳ 生成中...'; }
+  if (stopBtn) stopBtn.classList.add('visible');
+  for (let i = 0; i < data.shots.length; i++) {
+    if (stopBulkGen) break;
+    await generateCutImage(i);
+  }
+  if (genBtn)  { genBtn.disabled = false; genBtn.textContent = '🖼 全カット生成'; }
+  if (stopBtn) stopBtn.classList.remove('visible');
+  stopBulkGen = false;
+}
+
+function stopImageGeneration() {
+  stopBulkGen = true;
+}
+
+async function callGeminiImage(key, prompt, refImages = []) {
+  const model       = document.getElementById('imgGenModel')?.value || 'gemini-3.1-flash-image-preview';
+  const aspectRatio = document.getElementById('imgAspectRatio')?.value || '16:9';
+  const resolution  = document.getElementById('imgResolution')?.value || '';
+
+  // imageConfig で正式にアスペクト比・解像度を指定（テキストヒントより確実）
+  const imageConfig = { aspectRatio };
+  if (resolution) imageConfig.imageSize = resolution;
+
+  // 参照画像をラベル付きで parts に変換
+  const parts = [
+    ...refImages.flatMap(ri => {
+      if (ri.refType === 'scene') {
+        return [
+          { text: `[Scene background reference for location "${ri.label}" — maintain the same spatial environment, layout, lighting, and background details in the generated image]` },
+          { inline_data: { mime_type: ri.mimeType, data: ri.base64 } },
+        ];
+      }
+      return [
+        { text: `[Fictional anime character reference for "${ri.charName}" — use as visual style reference only, this is not a real person]` },
+        { inline_data: { mime_type: ri.mimeType, data: ri.base64 } },
+      ];
+    }),
+    { text: prompt },
+  ];
+
+  // Google Generative Language API（:generateContent）
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents: [{ parts }],
+      generationConfig: {
+        responseModalities: ['TEXT', 'IMAGE'],
+        imageConfig,
+      },
+    }),
+  });
+  if (!res.ok) {
+    const e = await res.json().catch(() => ({}));
+    throw new Error(e.error?.message || `APIエラー (${res.status})`);
+  }
+  const d = await res.json();
+  console.log('[NanoBanana/Gemini] response:', JSON.stringify(d).slice(0, 600));
+  const resParts = d.candidates?.[0]?.content?.parts || [];
+  for (const part of resParts) {
+    const id = part.inlineData || part.inline_data;
+    if (id?.data) {
+      return `data:${id.mimeType || id.mime_type || 'image/jpeg'};base64,${id.data}`;
+    }
+  }
+  const finishReason = d.candidates?.[0]?.finishReason;
+  const blockReason  = d.promptFeedback?.blockReason;
+  const textPart     = resParts.find(p => p.text)?.text?.slice(0, 100) || '';
+  let detail = `モデル: ${model}`;
+  if (blockReason)  detail += ` / ブロック: ${blockReason}`;
+  if (finishReason) detail += ` / 終了理由: ${finishReason}`;
+  if (textPart)     detail += ` / テキスト: "${textPart}"`;
+  throw new Error('画像データなし — ' + detail);
+}
+
+// ─── JSON parser（堅牢版） ──────────────────────
+
+// 文字列値内の不正な制御文字・改行をエスケープする
+function sanitizeJSONStrings(raw) {
+  let out = '';
+  let inStr = false;
+  let escaped = false;
+  for (let i = 0; i < raw.length; i++) {
+    const c = raw[i], code = raw.charCodeAt(i);
+    if (escaped)         { out += c; escaped = false; continue; }
+    if (c === '\\' && inStr) { out += c; escaped = true; continue; }
+    if (c === '"')       { inStr = !inStr; out += c; continue; }
+    if (inStr && code < 0x20) {
+      // 制御文字を適切にエスケープ
+      if      (c === '\n') out += '\\n';
+      else if (c === '\r') out += '\\r';
+      else if (c === '\t') out += '\\t';
+      // その他の制御文字は削除
+      continue;
+    }
+    out += c;
+  }
+  return out;
+}
+
+// max_tokens切り捨て時の復旧：最後の完全なオブジェクトまでで閉じる
+function recoverTruncated(raw) {
+  // shots配列が含まれるか確認
+  if (!raw.includes('"shots"')) return null;
+  // 最後の "}," or "}" を起点に、shots配列とルートオブジェクトを閉じて試す
+  let pos = raw.length;
+  for (let attempt = 0; attempt < 30; attempt++) {
+    const last = raw.lastIndexOf('}', pos - 1);
+    if (last <= 0) break;
+    const candidates = [
+      raw.slice(0, last + 1) + '\n  ]\n}',
+      raw.slice(0, last + 1) + ']}',
+    ];
+    for (const c of candidates) {
+      try { return JSON.parse(sanitizeJSONStrings(c)); } catch (_) {}
+    }
+    pos = last;
+  }
+  return null;
+}
+
+function parseJSON(text) {
+  // ```json ... ``` ブロックから抽出
+  const m = text.match(/```json\s*([\s\S]*?)\s*```/);
+  let raw = m ? m[1] : null;
+
+  // フォールバック：最大の {...} ブロックを取得
+  if (!raw) {
+    const m2 = text.match(/\{[\s\S]*\}/);
+    raw = m2 ? m2[0] : null;
+  }
+  if (!raw) throw new Error('JSONが見つかりませんでした。レスポンス先頭: ' + text.slice(0, 200));
+
+  // AIの典型的なミスを修正
+  raw = raw
+    .replace(/,(\s*[}\]])/g, '$1');   // trailing commas
+
+  // Step1: 文字列内の制御文字をサニタイズ
+  const sanitized = sanitizeJSONStrings(raw);
+
+  // Step2: 通常パース
+  try {
+    return JSON.parse(sanitized);
+  } catch (_) {}
+
+  // Step3: 切り捨て復旧を試みる
+  const recovered = recoverTruncated(raw);
+  if (recovered) {
+    console.warn('JSON was truncated; recovered', recovered.shots?.length, 'shots');
+    return recovered;
+  }
+
+  // Step4: エラー詳細を表示
+  try { JSON.parse(sanitized); } catch (e) {
+    throw new Error(`JSON解析エラー: ${e.message}\n（先頭300字）${sanitized.slice(0, 300)}`);
+  }
+}
+
+// ─── Render ───────────────────────────────────
+function render(d) {
+  const scenes = d.scene_summary || [];
+  const shots  = d.shots || [];
+  const totalS = shots.reduce((s, c) => s + (c.duration_sec || 0), 0);
+
+  const sceneRows = scenes.map(s => `
+    <tr>
+      <td><span class="s-badge">${esc(s.scene_no)}</span></td>
+      <td>${esc(s.location)}</td>
+      <td>${esc(s.time_of_day)}</td>
+      <td>${esc((s.characters||[]).join('、'))}</td>
+      <td>${esc(s.summary)}</td>
+    </tr>`).join('');
+
+  // シーンが切り替わるタイミングでシーンヘッダー行を挿入
+  let lastSceneNo = null;
+  const shotCards = shots.map((sh, i) => {
+    let header = '';
+    if (sh.scene_no !== lastSceneNo) {
+      lastSceneNo = sh.scene_no;
+      const sd = scenes.find(s => s.scene_no === sh.scene_no) || {};
+      header = sceneDivider(sh.scene_no, sd);
+    }
+    return header + shotCard(sh, i);
+  }).join('');
+
+  document.getElementById('results').innerHTML = `
+    <div class="res-header">
+      <div class="res-title">🎬 生成完了</div>
+      <div class="btn-row">
+        <button class="bulk-img-btn" id="bulkImgBtn" onclick="generateAllImages()">🖼 全カット生成</button>
+        <button class="stop-img-btn" id="stopImgBtn" onclick="stopImageGeneration()">⏹ 停止</button>
+        <button class="act-btn" onclick="exportJSON()">⬇ JSON出力</button>
+        <button class="act-btn" onclick="copyAll()">📋 全プロンプト</button>
+      </div>
+    </div>
+
+    <div class="stats-bar">
+      <div class="stat"><div class="stat-val">${scenes.length}</div><div class="stat-lbl">シーン</div></div>
+      <div class="stat"><div class="stat-val">${shots.length}</div><div class="stat-lbl">カット</div></div>
+      <div class="stat"><div class="stat-val">${totalS.toFixed(1)}s</div><div class="stat-lbl">総尺</div></div>
+      <div class="stat"><div class="stat-val">${(totalS/60).toFixed(1)}m</div><div class="stat-lbl">分換算</div></div>
+    </div>
+
+    <div class="sec-head">📋 シーンサマリー</div>
+    <table class="scene-table">
+      <thead><tr>
+        <th>No.</th><th>場所</th><th>時間帯</th><th>登場人物</th><th>概要</th>
+      </tr></thead>
+      <tbody>${sceneRows}</tbody>
+    </table>
+
+    <div class="sec-head" style="margin-top:28px">🎞 ショットリスト（${shots.length}カット）</div>
+    <div class="shots-list">${shotCards}</div>
+  `;
+
+  document.getElementById('results').style.display = 'block';
+  document.getElementById('emptyState').style.display = 'none';
+}
+
+// ─── Scene divider ────────────────────────────
+function sceneDivider(sceneNo, sd) {
+  const safeSno = sceneNo.replace(/[^A-Za-z0-9_-]/g, '_');
+  return `
+  <div class="scene-divider">
+    <input type="file" id="sgf-${safeSno}" accept="image/*" style="display:none"
+      onchange="handleSceneBgUpload(event,'${esc(sceneNo)}')">
+    <div class="scene-div-info">
+      <span class="s-badge">${esc(sceneNo)}</span>
+      <span class="scene-div-loc">📍 ${esc(sd.location || '')}${sd.time_of_day ? ' / ' + esc(sd.time_of_day) : ''}</span>
+      ${sd.characters?.length ? `<span class="scene-div-chars">👤 ${esc(sd.characters.join('、'))}</span>` : ''}
+    </div>
+    <div class="scene-div-bg" id="sgd-${safeSno}">${renderSceneBgContent(sceneNo, safeSno)}</div>
+  </div>`;
+}
+
+// シーン背景エリアの内容を返す（サムネ or メニュー）
+function renderSceneBgContent(sceneNo, safeSno) {
+  const bg = sceneImages[sceneNo];
+  if (bg) {
+    return `<div class="scene-bg-thumb" title="クリックで変更">
+      <img src="data:${bg.mimeType};base64,${bg.base64}"
+        onclick="document.getElementById('sgf-${safeSno}').click()">
+      <button class="rm-btn" onclick="removeSceneBg('${sceneNo}')" title="削除">×</button>
+    </div>`;
+  }
+  return `<div class="scene-bg-menu" id="sbm-${safeSno}">
+    <button class="scene-bg-add-btn" onclick="toggleSceneBgMenu('${safeSno}')">📷 背景を追加 ▾</button>
+    <div class="sbm-dropdown" id="sbdd-${safeSno}">
+      <div class="sbm-item" onclick="triggerSceneUpload('${safeSno}')">📁 アップロード</div>
+      <div class="sbm-item" onclick="generateSceneBgAuto('${sceneNo}','${safeSno}')">🤖 シーンから自動生成</div>
+      <div class="sbm-item" onclick="toggleSceneBgPrompt('${safeSno}')">✏️ プロンプトで生成 ▾</div>
+      <div class="sbm-prompt-row" id="sbpr-${safeSno}">
+        <textarea id="sbpt-${safeSno}"
+          placeholder="例: wide shot, dim warehouse interior, concrete floor, metal shelves..."></textarea>
+        <button onclick="generateSceneBgCustom('${sceneNo}','${safeSno}')">✨ 生成</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function handleSceneBgUpload(event, sceneNo) {
+  const file = event.target.files[0];
+  event.target.value = '';
+  if (!file) return;
+  const safeSno = sceneNo.replace(/[^A-Za-z0-9_-]/g, '_');
+  resizeImage(file).then(img => {
+    sceneImages[sceneNo] = img;
+    const area = document.getElementById('sgd-' + safeSno);
+    if (area) area.innerHTML = renderSceneBgContent(sceneNo, safeSno);
+  }).catch(() => showError('背景画像の読み込みに失敗しました'));
+}
+
+function removeSceneBg(sceneNo) {
+  delete sceneImages[sceneNo];
+  const safeSno = sceneNo.replace(/[^A-Za-z0-9_-]/g, '_');
+  const area = document.getElementById('sgd-' + safeSno);
+  if (area) area.innerHTML = renderSceneBgContent(sceneNo, safeSno);
+}
+
+// ─── Scene bg menu controls ──────────────────
+function toggleSceneBgMenu(safeSno) {
+  const dd = document.getElementById('sbdd-' + safeSno);
+  if (!dd) return;
+  // 他のドロップダウンを閉じる
+  document.querySelectorAll('.sbm-dropdown.open').forEach(el => {
+    if (el !== dd) el.classList.remove('open');
+  });
+  dd.classList.toggle('open');
+}
+
+function triggerSceneUpload(safeSno) {
+  document.getElementById('sgf-' + safeSno)?.click();
+  document.getElementById('sbdd-' + safeSno)?.classList.remove('open');
+}
+
+function toggleSceneBgPrompt(safeSno) {
+  document.getElementById('sbpr-' + safeSno)?.classList.toggle('open');
+}
+
+// ─── Scene bg generation ─────────────────────
+function buildSceneBgPrompt(sceneNo) {
+  const sd = (data?.scene_summary || []).find(s => s.scene_no === sceneNo) || {};
+  const styleMap = {
+    studio_ghibli: 'Studio Ghibli style, watercolor background, soft shading, detailed environment',
+    shonen_manga:  'shonen anime style, vibrant colors, dynamic background',
+    seinen_anime:  'seinen anime style, realistic, cinematic, detailed environment',
+    chibi:         'chibi anime style, pastel colors, cute background',
+    custom:        document.getElementById('customStyle')?.value || 'anime style',
+  };
+  const styleStr = styleMap[style] || 'anime illustration';
+  const chars = (sd.characters || []).join(', ');
+  return [
+    'establishing shot, wide angle, background/environment focus',
+    `location: ${sd.location || 'unknown location'}`,
+    sd.time_of_day ? `time of day: ${sd.time_of_day}` : '',
+    sd.summary ? `scene context: ${sd.summary}` : '',
+    chars ? `(characters that may appear: ${chars})` : 'no characters, empty scene',
+    'detailed background, architectural details, atmospheric lighting',
+    styleStr,
+    'high quality, masterpiece, anime illustration',
+  ].filter(Boolean).join(', ');
+}
+
+async function generateSceneBgAuto(sceneNo, safeSno) {
+  document.getElementById('sbdd-' + safeSno)?.classList.remove('open');
+  const prompt = buildSceneBgPrompt(sceneNo);
+  await doGenerateSceneBg(sceneNo, safeSno, prompt);
+}
+
+async function generateSceneBgCustom(sceneNo, safeSno) {
+  const ta = document.getElementById('sbpt-' + safeSno);
+  const prompt = ta?.value.trim();
+  if (!prompt) { ta?.focus(); return; }
+  await doGenerateSceneBg(sceneNo, safeSno, prompt);
+}
+
+async function doGenerateSceneBg(sceneNo, safeSno, prompt) {
+  const key = getImgApiKey();
+  if (!key) return showError('APIキーを入力してください');
+  const area = document.getElementById('sgd-' + safeSno);
+  if (area) area.innerHTML = `<span class="scene-bg-generating"><div class="spinner" style="width:10px;height:10px;border-width:1.5px"></div>生成中...</span>`;
+  try {
+    const dataUrl = await callGeminiImage(key, prompt, []);
+    const commaIdx = dataUrl.indexOf(',');
+    const mimeType = dataUrl.substring(5, dataUrl.indexOf(';'));
+    const base64   = dataUrl.substring(commaIdx + 1);
+    sceneImages[sceneNo] = { base64, mimeType, name: 'bg_' + sceneNo };
+    if (area) area.innerHTML = renderSceneBgContent(sceneNo, safeSno);
+  } catch (err) {
+    showError('背景生成エラー: ' + err.message);
+    if (area) area.innerHTML = renderSceneBgContent(sceneNo, safeSno);
+  }
+}
+
+function shotCard(sh, idx) {
+  const dia    = sh.dialogue && sh.dialogue.trim() !== '';
+  const chars  = (sh.characters || []).join('、');
+  const genImg = genImages[sh.cut_no] || null;
+  return `
+  <div class="shot-card">
+    <div class="card-head">
+      <span class="cut-badge">${esc(sh.cut_no)}</span>
+      <span class="s-ref">${esc(sh.scene_no)}</span>
+      ${chars ? `<span class="char-tag">👤 ${esc(chars)}</span>` : ''}
+      <span class="dur-tag">${sh.duration_sec}s</span>
+    </div>
+    <div class="card-body">
+      <div class="spec-row">
+        <span class="stag loc">📍 ${esc(sh.location)} · ${esc(sh.time_of_day)}</span>
+        <span class="stag">🎬 ${esc(sh.shot_size)}</span>
+        <span class="stag">📐 ${esc(sh.camera_angle)}</span>
+        <span class="stag">🎥 ${esc(sh.camera_move)}</span>
+      </div>
+
+      <div class="info-grid">
+        <div class="info-box">
+          <div class="info-lbl">アクション</div>
+          <div class="info-val">${esc(sh.action)}</div>
+        </div>
+        ${dia ? `
+        <div class="info-box">
+          <div class="info-lbl">台詞</div>
+          <div class="info-val dia">「${esc(sh.dialogue)}」</div>
+        </div>` : '<div></div>'}
+      </div>
+
+      <div class="meta-row">
+        ${sh.se_bgm ? `<span class="stag">🎵 ${esc(sh.se_bgm)}</span>` : ''}
+        ${sh.mood   ? `<span class="mood-tag">✨ ${esc(sh.mood)}</span>` : ''}
+      </div>
+
+      <div class="gen-img-block${genImg ? ' visible' : ''}" id="gimg${idx}">
+        ${genImg ? `<img src="${genImg}" alt="${esc(sh.cut_no)}" onclick="openLightbox('${esc(sh.cut_no)}')" title="クリックで拡大"><a href="${genImg}" download="${esc(sh.cut_no)}.png" style="position:absolute;bottom:6px;right:8px;background:rgba(0,0,0,.65);color:#fff;font-size:10px;padding:3px 8px;border-radius:4px;text-decoration:none" onclick="event.stopPropagation()">⬇ 保存</a>` : ''}
+      </div>
+
+      <div class="prompt-sec">
+        <div class="prompt-head">
+          <span class="prompt-lbl">🖼 画像生成プロンプト</span>
+          <div style="display:flex;gap:5px">
+            <button class="img-gen-btn${genImg ? ' done' : ''}" id="igb${idx}" onclick="generateCutImage(${idx})">${genImg ? '✅ 再生成' : '🖼 生成'}</button>
+            <button class="copy-btn" id="cb${idx}" onclick="copyPrompt(${idx})">📋 コピー</button>
+          </div>
+        </div>
+        <div class="prompt-txt">${esc(sh.image_prompt)}</div>
+      </div>
+    </div>
+  </div>`;
+}
+
+// ─── Utilities ────────────────────────────────
+function esc(s) {
+  return (s || '').toString()
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;');
+}
+
+function copyPrompt(idx) {
+  if (!data) return;
+  const text = (data.shots[idx] || {}).image_prompt || '';
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.getElementById('cb' + idx);
+    if (!btn) return;
+    btn.textContent = '✅ コピー済み';
+    btn.classList.add('ok');
+    setTimeout(() => { btn.textContent = '📋 コピー'; btn.classList.remove('ok'); }, 2000);
+  });
+}
+
+function copyAll() {
+  if (!data) return;
+  const all = (data.shots || []).map((s, i) =>
+    `/* ${s.cut_no} - ${s.scene_no} */\n${s.image_prompt}`
+  ).join('\n\n');
+  navigator.clipboard.writeText(all).then(() => alert(`${data.shots.length}件のプロンプトをコピーしました！`));
+}
+
+function exportJSON() {
+  if (!data) return;
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url;
+  a.download = `storyboard_${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function setLoading(on) {
+  const btn = document.getElementById('genBtn');
+  btn.disabled = on;
+  document.getElementById('btnIco').innerHTML = on ? '<div class="spinner"></div>' : '🎬';
+  document.getElementById('btnTxt').textContent = on ? '生成中...' : '絵コンテを生成する';
+}
+
+function showError(msg) {
+  const el = document.getElementById('errBanner');
+  el.textContent = '⚠️ ' + msg;
+  el.style.display = 'block';
+}
+function clearError() {
+  document.getElementById('errBanner').style.display = 'none';
+}
+
+// ─── System prompt ────────────────────────────
+const SYSTEM_PROMPT = `あなたはプロのアニメ演出家・絵コンテ作家AIです。
+ユーザーが提供した脚本テキストを解析し、アニメ制作用の詳細なカット割・ショットリストと、各カットの絵コンテ画像を生成するためのプロンプトを作成します。
+
+## 基本方針
+- 日本語の脚本を正確に読み取り、映像として成立するカット割を行う
+- 映画・アニメの演出理論（180度ルール、マッチカット、コンティニュイティ等）を遵守する
+- 登場キャラクターの一貫性を保ち、各カットに正確に反映する
+- 指定されたアニメスタイルをすべての画像プロンプトに統一して適用する
+
+## カット割設計
+各シーンを複数カットに分解し、以下を意識する：
+- 導入カット：エスタブリッシングショットで場所・状況を伝える
+- アクションカット：動きや感情のクローズアップ
+- リアクションカット：相手キャラや環境の反応
+- トランジションカット：シーン転換の橋渡し
+
+## image_promptの形式
+英語で記述。順序：[SHOT SIZE], [CAMERA ANGLE], [SCENE DESCRIPTION], [CHARACTER DESCRIPTIONS], [ACTION/POSE], [LIGHTING], [BACKGROUND], [STYLE TAGS], [QUALITY TAGS]
+
+## 空間一貫性（最重要）
+同一シーン内のすべてのカットのimage_promptに、**まったく同じ環境キーワード群**を必ず含めること。
+- 場所の素材・色・構造（例：rusty corrugated iron walls, cracked concrete floor, exposed steel beams）
+- 光源の種類と色（例：single flickering fluorescent light, cold blue-white overhead lighting）
+- 固定オブジェクト（例：metal shelving units on the left, stacked wooden crates in the background）
+- 奥行き・空間感（例：cavernous industrial space, low ceiling, narrow aisle）
+これらを毎カット変えずにコピーして使うことで、同一シーンの画像に空間的統一感が生まれる。
+
+---
+
+## キャラクター構図・ポーズ ナレッジ（image_prompt生成に必ず活用すること）
+
+### カメラアングルと心理効果
+- アオリ（見上げ）→ 威圧感・権威感・強者感：low angle, looking up, worm's eye view
+- フカン（見下ろし）→ かわいらしさ・弱者感・不憫感：high angle, bird's eye view, overhead shot
+- 通常（アイレベル）→ 親近感・日常感：eye level, straight on
+- 広角 → 迫力・臨場感：wide angle, dramatic perspective
+- 望遠 → のぞき見感・没入感：telephoto, voyeuristic, intimate
+
+### シルエットと印象
+- 外側に膨らむ（たる型）→ 力強さ：powerful stance, wide footing
+- トゲトゲ型（多方向に張る）→ 活発・躍動：dynamic pose, explosive energy
+- くの字型（折れ曲がる）→ 弱さ・落ち込み：slumped, bent posture, defeated
+- 内側に反る（きゃしゃ）→ かわいさ・女性らしさ：shy inward pose, delicate stance
+- 斜め型（傾いている）→ 疾走感・不安定：diagonal lean, off-balance, rushing
+
+### 感情別ポーズキーワード（英語）
+| 感情・関係性 | image_promptに使うキーワード |
+|------------|---------------------------|
+| 媚び・あざとさ | coy pose, upward glance through lashes, slightly bowed, inward posture, shy smile |
+| 依存・強い好意 | leaning against, clinging, resting head on shoulder, close proximity, arms wrapped around |
+| 信頼・友情 | side by side, facing same direction, relaxed posture, casual closeness |
+| 感情の高ぶり | compressed dynamic pose, tense body, fists clenched, explosive energy building |
+| 威圧・強者 | arms spread wide, looming stance, chin raised, looking down dominantly |
+| 脱力・疲労 | limp posture, slouched, drooping arms, heavy eyelids, melting into surface |
+| 焦れったさ・ツンデレ | face turned away, glancing back over shoulder, averted gaze, arms crossed |
+| 哀愁・もの悲しさ | gentle sway, distant gaze, wind-swept hair, melancholic stillness |
+| 不憫・恐怖 | huddled, arms crossed protecting chest, cowering, trembling, wide fearful eyes |
+| 執着・独占欲 | desperately reaching out, leaning forward intensely, eyes fixed and wide |
+| 対立・敵意 | tense confrontation, squared off, narrowed eyes, ready stance |
+| 満喫・幸福 | open arms, chest out, looking up joyfully, basking, carefree stretch |
+
+### 目線の使い方
+- 全力の関心・真剣：direct eye contact, facing forward fully
+- チラ見（興味あり隠したい）：sideways glance, face turned away but eyes looking back
+- 上目遣い：upward glance through lashes, submissive yet appealing eye contact
+- 俯き（感情が内側に）：downward gaze, eyes cast down, head slightly bowed
+
+### ライティングと雰囲気
+| シーン雰囲気 | ライティング指示 |
+|------------|---------------|
+| 日常・安心 | soft diffused lighting, warm ambient light, gentle shadows |
+| 神秘・荘厳 | dramatic top lighting, ethereal glow, rim lighting |
+| 意味深・ダーク | backlit, silhouette, contre-jour, face in shadow |
+| 不気味・緊張 | dramatic underlighting, harsh shadows from below, ominous |
+| 希望・感動 | light streaming from upper left, golden hour, rays of light |
+| スポット・重要シーン | spotlight effect, single focused light source, dark surroundings |
+
+### 構図演出のキーワード
+| 演出 | 構図キーワード |
+|------|-------------|
+| 希望 | bottom-left to top-right composition, light from upper-left, upward gaze |
+| 孤独 | subject at edge of frame, vast empty space, isolated figure, negative space |
+| 威圧 | low angle composition, subject upper-right, dramatic overhead lighting |
+| 穏やか | horizontal composition, centered, soft lighting, warm tones |
+| 緊迫感 | dutch angle, tilted frame, harsh shadows, claustrophobic framing |
+| 躍動感 | diagonal composition, motion blur, dynamic lines, depth of field |
+| 没入感 | foreground elements, layered depth, bokeh background, environmental details |
+| 意味深 | spotlight on key item, object in focus at center, subject in shadow |
+
+### 視線誘導の原則
+- 顔・目のコントラストを最も強く（eyes are the focal point）
+- 主役は三分割法の交点付近に配置（rule of thirds composition）
+- 前景にオブジェクト → 没入感（foreground objects for depth and immersion）
+- 画面右側（上手）→ 権威・強者。画面左側（下手）→ 弱者・挑戦者
+
+必ずJSONのみで回答してください。`;
+</script>
+</body>
+</html>
