@@ -598,6 +598,62 @@
     ::-webkit-scrollbar-track { background: var(--bg); }
     ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
 
+    /* Prompt refine – global */
+    .prompt-refine-global {
+      background: var(--bg3);
+      border: 1px solid var(--border2);
+      border-radius: 10px;
+      padding: 13px 16px;
+      margin-bottom: 20px;
+    }
+    .prompt-refine-global .rf-head {
+      font-size: 12px; font-weight: 600; color: var(--txt2);
+      text-transform: uppercase; letter-spacing: .6px;
+      display: flex; align-items: center; gap: 6px;
+      margin-bottom: 9px;
+    }
+    .prompt-refine-global .rf-row { display: flex; gap: 8px; }
+    .prompt-refine-global textarea {
+      flex: 1;
+      background: var(--bg4); border: 1px solid var(--border);
+      border-radius: 7px; color: var(--txt);
+      font-size: 13px; padding: 8px 11px;
+      resize: none; font-family: inherit; outline: none; min-height: 52px;
+    }
+    .prompt-refine-global textarea:focus { border-color: var(--accent); }
+    .rf-btn {
+      background: linear-gradient(135deg, var(--accent), var(--accent-d));
+      border: none; border-radius: 7px; color: #fff;
+      font-size: 13px; font-weight: 600;
+      padding: 0 16px; cursor: pointer;
+      white-space: nowrap; transition: opacity .18s; align-self: stretch;
+    }
+    .rf-btn:hover:not(:disabled) { opacity: .85; }
+    .rf-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+    /* Prompt refine – per cut */
+    .cut-refine-row {
+      display: flex; gap: 5px; margin-top: 8px;
+    }
+    .cut-refine-inp {
+      flex: 1;
+      background: var(--bg4); border: 1px solid var(--border);
+      border-radius: 5px; color: var(--txt);
+      font-size: 12px; padding: 5px 9px;
+      font-family: inherit; outline: none;
+    }
+    .cut-refine-inp::placeholder { color: var(--txt3); }
+    .cut-refine-inp:focus { border-color: var(--accent-l); }
+    .cut-refine-btn {
+      background: var(--bg4); border: 1px solid var(--border2);
+      border-radius: 5px; color: var(--accent-l);
+      font-size: 11px; font-weight: 600;
+      padding: 5px 11px; cursor: pointer;
+      white-space: nowrap; transition: all .18s;
+    }
+    .cut-refine-btn:hover:not(:disabled) { background: rgba(124,58,237,.15); border-color: var(--accent); }
+    .cut-refine-btn:disabled { opacity: .5; cursor: not-allowed; }
+
     /* Responsive */
     @media (max-width: 860px) {
       .layout { grid-template-columns: 1fr; height: auto; }
@@ -1308,6 +1364,15 @@ function render(d) {
       <div class="stat"><div class="stat-val">${(totalS/60).toFixed(1)}m</div><div class="stat-lbl">分換算</div></div>
     </div>
 
+    <div class="prompt-refine-global">
+      <div class="rf-head">✨ 全カット プロンプト修正</div>
+      <div class="rf-row">
+        <textarea id="globalRefineDir" rows="2"
+          placeholder="例: 部室をもっと綺麗で明るい雰囲気にしてください / 全体的に夕暮れ感を出してください"></textarea>
+        <button class="rf-btn" id="globalRfBtn" onclick="refineAllPrompts()">全カット修正</button>
+      </div>
+    </div>
+
     <div class="sec-head">📋 シーンサマリー</div>
     <table class="scene-table">
       <thead><tr>
@@ -1508,7 +1573,13 @@ function shotCard(sh, idx) {
             <button class="copy-btn" id="cb${idx}" onclick="copyPrompt(${idx})">📋 コピー</button>
           </div>
         </div>
-        <div class="prompt-txt">${esc(sh.image_prompt)}</div>
+        <div class="prompt-txt" id="pt${idx}">${esc(sh.image_prompt)}</div>
+        <div class="cut-refine-row">
+          <input class="cut-refine-inp" id="rfinp${idx}" type="text"
+            placeholder="修正指示（例: もっと綺麗な部室に / 窓から光が差し込む感じに）"
+            onkeydown="if(event.key==='Enter')refineCutPrompt(${idx})">
+          <button class="cut-refine-btn" id="rfbtn${idx}" onclick="refineCutPrompt(${idx})">✨ 修正</button>
+        </div>
       </div>
     </div>
   </div>`;
@@ -1566,6 +1637,94 @@ function showError(msg) {
 }
 function clearError() {
   document.getElementById('errBanner').style.display = 'none';
+}
+
+// ─── Prompt refinement ────────────────────────
+
+async function refineCutPrompt(idx) {
+  if (!data || !data.shots[idx]) return;
+  const inpEl = document.getElementById('rfinp' + idx);
+  const btnEl = document.getElementById('rfbtn' + idx);
+  const direction = inpEl?.value.trim();
+  if (!direction) { inpEl?.focus(); return; }
+
+  const key = document.getElementById('apiKey').value.trim();
+  if (!key) return showError('APIキーを入力してください。');
+
+  if (btnEl) { btnEl.disabled = true; btnEl.textContent = '修正中...'; }
+
+  const sh = data.shots[idx];
+  const msg = `以下の画像生成プロンプトを、修正指示に従って書き直してください。
+
+現在のプロンプト:
+${sh.image_prompt}
+
+修正指示（日本語OK）:
+${direction}
+
+修正後のプロンプトのみを英語で返してください（説明不要）。`;
+
+  try {
+    let newPrompt = (await callGemini(key, msg)).trim()
+      .replace(/^```[^\n]*\n?/, '').replace(/```$/, '').trim();
+    data.shots[idx].image_prompt = newPrompt;
+    const ptEl = document.getElementById('pt' + idx);
+    if (ptEl) ptEl.textContent = newPrompt;
+    if (inpEl) inpEl.value = '';
+    if (btnEl) { btnEl.textContent = '✅ 修正済み'; setTimeout(() => { btnEl.disabled = false; btnEl.textContent = '✨ 修正'; }, 1800); }
+  } catch (e) {
+    showError('プロンプト修正エラー: ' + e.message);
+    if (btnEl) { btnEl.disabled = false; btnEl.textContent = '✨ 修正'; }
+  }
+}
+
+async function refineAllPrompts() {
+  if (!data) return;
+  const dirEl = document.getElementById('globalRefineDir');
+  const btnEl = document.getElementById('globalRfBtn');
+  const direction = dirEl?.value.trim();
+  if (!direction) { dirEl?.focus(); return; }
+
+  const key = document.getElementById('apiKey').value.trim();
+  if (!key) return showError('APIキーを入力してください。');
+
+  if (btnEl) { btnEl.disabled = true; btnEl.textContent = '修正中...'; }
+
+  const prompts = data.shots.map(s => s.image_prompt);
+  const msg = `以下の画像生成プロンプトすべてを、修正指示に従って書き直してください。
+
+修正指示（日本語OK）:
+${direction}
+
+プロンプトリスト（JSON配列）:
+${JSON.stringify(prompts, null, 2)}
+
+修正後のプロンプトをJSON配列形式で返してください。順序・要素数は変えないこと。
+\`\`\`json
+["修正後プロンプト1", "修正後プロンプト2", ...]
+\`\`\``;
+
+  try {
+    const res = await callGemini(key, msg);
+    const m = res.match(/```json\s*([\s\S]*?)\s*```/);
+    const raw = m ? m[1] : res.match(/\[[\s\S]*\]/)?.[0];
+    if (!raw) throw new Error('JSONが見つかりませんでした');
+    const newPrompts = JSON.parse(sanitizeJSONStrings(raw));
+    if (!Array.isArray(newPrompts) || newPrompts.length !== prompts.length) {
+      throw new Error(`プロンプト数が一致しません（期待: ${prompts.length}, 取得: ${newPrompts?.length}）`);
+    }
+    newPrompts.forEach((p, i) => {
+      data.shots[i].image_prompt = p;
+      const ptEl = document.getElementById('pt' + i);
+      if (ptEl) ptEl.textContent = p;
+    });
+    if (dirEl) dirEl.value = '';
+    if (btnEl) { btnEl.textContent = `✅ ${newPrompts.length}件修正完了`; }
+    setTimeout(() => { if (btnEl) { btnEl.disabled = false; btnEl.textContent = '全カット修正'; } }, 2200);
+  } catch (e) {
+    showError('全カット修正エラー: ' + e.message);
+    if (btnEl) { btnEl.disabled = false; btnEl.textContent = '全カット修正'; }
+  }
 }
 
 // ─── System prompt ────────────────────────────
